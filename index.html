@@ -44,15 +44,28 @@ document.getElementById("fileInput").addEventListener("change", function(event) 
     const file = event.target.files[0];
     if (!file) return;
 
-    Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-            console.log("Parsed CSV:", results.data);
+    const reader = new FileReader();
 
-            showColumnNames(results.data);
-        }
-    });
+    reader.onload = function(e) {
+        const text = e.target.result;
+
+        // Split into lines
+        const lines = text.split(/\r?\n/);
+
+        // Thinkorswim headers usually start on row 12 (index 11)
+        const dataLines = lines.slice(11).join("\n");
+
+        Papa.parse(dataLines, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                console.log("Parsed CSV:", results.data);
+                showColumnNames(results.data);
+            }
+        });
+    };
+
+    reader.readAsText(file);
 });
 
 function showColumnNames(data) {
@@ -69,6 +82,3 @@ function showColumnNames(data) {
     document.getElementById("output").innerHTML = html;
 }
 </script>
-
-</body>
-</html>
