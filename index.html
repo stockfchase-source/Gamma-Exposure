@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gamma Exposure Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+        input {
+            margin-top: 10px;
+        }
+        table {
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 6px 10px;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Gamma Exposure Calculator</h1>
+<p>Upload a Thinkorswim options chain CSV file.</p>
+
+<input type="file" id="fileInput" accept=".csv">
+
+<div id="output"></div>
+
+<script>
+document.getElementById("fileInput").addEventListener("change", function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        document.getElementById("output").innerHTML =
+            "<pre>" + text.substring(0, 1000) + "</pre>";
+    };
+    reader.readAsText(file);
+});
+</script>
+
+</body>
+</html>
