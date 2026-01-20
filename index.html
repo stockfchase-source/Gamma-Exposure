@@ -3,31 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <title>Gamma Exposure Calculator</title>
+
+    <!-- Papa Parse CSV Library -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 40px;
         }
-        input {
-            margin-top: 10px;
-        }
         table {
             border-collapse: collapse;
             margin-top: 20px;
+            width: 100%;
         }
         th, td {
             border: 1px solid #ccc;
             padding: 6px 10px;
+            text-align: right;
         }
         th {
             background-color: #f4f4f4;
+        }
+        th:first-child, td:first-child {
+            text-align: left;
         }
     </style>
 </head>
 <body>
 
 <h1>Gamma Exposure Calculator</h1>
-<p>Upload a Thinkorswim options chain CSV file.</p>
+<p>Upload a Thinkorswim options chain CSV.</p>
 
 <input type="file" id="fileInput" accept=".csv">
 
@@ -38,14 +44,30 @@ document.getElementById("fileInput").addEventListener("change", function(event) 
     const file = event.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const text = e.target.result;
-        document.getElementById("output").innerHTML =
-            "<pre>" + text.substring(0, 1000) + "</pre>";
-    };
-    reader.readAsText(file);
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+            console.log("Parsed CSV:", results.data);
+
+            showColumnNames(results.data);
+        }
+    });
 });
+
+function showColumnNames(data) {
+    if (!data.length) return;
+
+    const columns = Object.keys(data[0]);
+
+    let html = "<h2>Detected Columns</h2><ul>";
+    columns.forEach(col => {
+        html += `<li>${col}</li>`;
+    });
+    html += "</ul>";
+
+    document.getElementById("output").innerHTML = html;
+}
 </script>
 
 </body>
