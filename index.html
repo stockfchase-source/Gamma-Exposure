@@ -1,91 +1,18 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Multi-Ticker Gamma Exposure</title>
-
-<!-- Chart.js v3 (LOCKED VERSION) -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
-
-<!-- Annotation Plugin (COMPATIBLE WITH v3) -->
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
-
-<!-- Papa Parse -->
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
-<style>
-body {
-    background-color: #0e1117;
-    color: #e6edf3;
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 20px;
-}
-
-h1 { margin-bottom: 20px; }
-h2 { margin-bottom: 5px; }
-
-.chart-container {
-    margin: 0 auto 40px auto;
-    height: 300px;
-    max-width: 1100px;
-}
-
-canvas {
-    background: #0e1117;
-    border-radius: 10px;
-}
-</style>
-</head>
-
-<body>
-
-<h1>Gamma Exposure Dashboard</h1>
-
-<div class="chart-container">
-    <h2>Ticker 1</h2>
-    <input type="file" onchange="loadCSV(event, 0)">
-    <canvas id="chart0"></canvas>
-</div>
-
-<div class="chart-container">
-    <h2>Ticker 2</h2>
-    <input type="file" onchange="loadCSV(event, 1)">
-    <canvas id="chart1"></canvas>
-</div>
-
-<div class="chart-container">
-    <h2>Ticker 3</h2>
-    <input type="file" onchange="loadCSV(event, 2)">
-    <canvas id="chart2"></canvas>
-</div>
-
 <script>
-/* =========================================================
-   GLOBAL STATE
-========================================================= */
 const charts = [];
 
-/* =========================================================
-   SAFE NUMBER PARSER
-========================================================= */
 function toNumber(value) {
     if (value === null || value === undefined) return 0;
     if (typeof value === "number") return value;
 
-    const cleaned = value
-        .toString()
-        .replace(/"/g, "")
-        .replace(/,/g, "")
-        .trim();
-
-    const num = Number(cleaned);
-    return isNaN(num) ? 0 : num;
+    return Number(
+        value.toString()
+            .replace(/"/g, "")
+            .replace(/,/g, "")
+            .trim()
+    ) || 0;
 }
 
-/* =========================================================
-   CSV LOADER
-========================================================= */
 function loadCSV(event, chartIndex) {
     const file = event.target.files[0];
     if (!file) return;
@@ -94,10 +21,7 @@ function loadCSV(event, chartIndex) {
     reader.onload = e => {
         const lines = e.target.result.split("\n");
 
-        // Spot price (cell A5)
         const spot = toNumber(lines[4]?.split(",")[0]);
-
-        // Header row (row 12)
         const header = lines[11];
         const body = lines.slice(12);
         const csvData = [header, ...body].join("\n");
@@ -114,12 +38,8 @@ function loadCSV(event, chartIndex) {
     reader.readAsText(file);
 }
 
-/* =========================================================
-   CHART BUILDER
-========================================================= */
 function buildChart(rows, spot, index) {
 
-    const strikes = [];
     const callGEX = [];
     const putGEX  = [];
 
@@ -129,13 +49,18 @@ function buildChart(rows, spot, index) {
 
         const callGamma = toNumber(r["Gamma"]);
         const callOI    = toNumber(r["Open.Int"]);
-
         const putGamma  = toNumber(r["Gamma_1"]);
         const putOI     = toNumber(r["Open.Int_1"]);
 
-        strikes.push(strike);
-        callGEX.push(callGamma * callOI * 100 * spot);
-        putGEX.push(putGamma * putOI * 100 * spot);
+        callGEX.push({
+            x: strike,
+            y: callGamma * callOI * 100 * spot
+        });
+
+        putGEX.push({
+            x: strike,
+            y: putGamma * putOI * 100 * spot
+        });
     });
 
     if (charts[index]) charts[index].destroy();
@@ -145,7 +70,6 @@ function buildChart(rows, spot, index) {
         {
             type: "line",
             data: {
-                labels: strikes,
                 datasets: [
                     {
                         label: "Call GEX",
@@ -173,6 +97,7 @@ function buildChart(rows, spot, index) {
                         annotations: {
                             spotLine: {
                                 type: "line",
+                                scaleID: "x",
                                 xMin: spot,
                                 xMax: spot,
                                 borderColor: "#ff4fd8",
@@ -180,7 +105,8 @@ function buildChart(rows, spot, index) {
                                 borderDash: [6, 6],
                                 label: {
                                     enabled: true,
-                                    content: "Spot",
+                                    content: `Spot ${spot}`,
+                                    position: "start",
                                     color: "#ff4fd8"
                                 }
                             }
@@ -189,11 +115,20 @@ function buildChart(rows, spot, index) {
                 },
                 scales: {
                     x: {
-                        title: { display: true, text: "Strike", color: "#e6edf3" },
+                        type: "linear",
+                        title: {
+                            display: true,
+                            text: "Strike",
+                            color: "#e6edf3"
+                        },
                         ticks: { color: "#e6edf3" }
                     },
                     y: {
-                        title: { display: true, text: "Gamma Exposure", color: "#e6edf3" },
+                        title: {
+                            display: true,
+                            text: "Gamma Exposure",
+                            color: "#e6edf3"
+                        },
                         ticks: { color: "#e6edf3" }
                     }
                 }
@@ -202,6 +137,3 @@ function buildChart(rows, spot, index) {
     );
 }
 </script>
-
-</body>
-</html>
