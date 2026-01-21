@@ -75,14 +75,14 @@ document.getElementById("fileInput").addEventListener("change", function(event) 
         const text = e.target.result;
         const lines = text.split(/\r?\n/);
 
-        // Spot price is in cell A5 (row index 4)
+        // Spot price is in cell A5
         const spotPrice = parseFloat(lines[4].split(",")[0]);
         if (isNaN(spotPrice)) {
             alert("Could not detect spot price in cell A5.");
             return;
         }
 
-        // Remove Thinkorswim metadata rows
+        // Remove Thinkorswim metadata
         const dataLines = lines.slice(11).join("\n");
 
         Papa.parse(dataLines, {
@@ -105,35 +105,63 @@ function buildChart(data, spot) {
         const strike = parseFloat(row["Strike"]);
         if (isNaN(strike)) return;
 
-        const cOI = parseFloat(row["Open.Int"]) || 0;
-        const cGamma = parseFloat(row["Gamma"]) || 0;
+        const callOI = parseFloat(row["Open.Int"]) || 0;
+        const callGamma = parseFloat(row["Gamma"]) || 0;
 
-        const pOI = parseFloat(row["Open.Int_1"]) || 0;
-        const pGamma = parseFloat(row["Gamma_1"]) || 0;
+        const putOI = parseFloat(row["Open.Int_1"]) || 0;
+        const putGamma = parseFloat(row["Gamma_1"]) || 0;
 
         strikes.push(strike);
-        callGEX.push(cGamma * cOI * 100 * spot);
-        putGEX.push(pGamma * pOI * 100 * spot);
+
+        // Call & Put GEX (both positive for visualization)
+        callGEX.push(callGamma * callOI * 100 * spot);
+        putGEX.push(putGamma * putOI * 100 * spot);
     });
 
     const ctx = document.getElementById("gexChart").getContext("2d");
     if (window.chart) window.chart.destroy();
 
+    // Vertical spot price line plugin
+    const spotLinePlugin = {
+        id: "spotLine",
+        afterDraw(chart) {
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+
+            const index = strikes.findIndex(s => s >= spot);
+            if (index === -1) return;
+
+            const x = xScale.getPixelForValue(index);
+
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.strokeStyle = "#ff4d9d"; // pink
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+            ctx.moveTo(x, yScale.top);
+            ctx.lineTo(x, yScale.bottom);
+            ctx.stroke();
+            ctx.restore();
+        }
+    };
+
     window.chart = new Chart(ctx, {
         type: "line",
+        plugins: [spotLinePlugin],
         data: {
             labels: strikes,
             datasets: [
                 {
                     label: "Call GEX",
                     data: callGEX,
-                    borderColor: getComputedStyle(document.documentElement).getPropertyValue('--call'),
+                    borderColor: "#2ecc71", // GREEN
                     tension: 0.25
                 },
                 {
                     label: "Put GEX",
                     data: putGEX,
-                    borderColor: getComputedStyle(document.documentElement).getPropertyValue('--put'),
+                    borderColor: "#e74c3c", // RED
                     tension: 0.25
                 }
             ]
@@ -146,7 +174,9 @@ function buildChart(data, spot) {
                 },
                 tooltip: {
                     callbacks: {
-                        label: ctx => ctx.dataset.label + ": " + ctx.parsed.y.toLocaleString()
+                        label: ctx =>
+                            ctx.dataset.label + ": " +
+                            ctx.parsed.y.toLocaleString()
                     }
                 }
             },
@@ -175,5 +205,3 @@ function buildChart(data, spot) {
     });
 }
 </script>
-</body>
-</html>
