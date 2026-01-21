@@ -114,8 +114,8 @@ function buildChart(data, spot) {
         strikes.push(strike);
 
         // Call & Put GEX (both positive for visualization)
-        callGEX.push(callGamma * callOI * 100 * spot);
-        putGEX.push(putGamma * putOI * 100 * spot);
+        callGEX.push(callGamma * callOI * 100);
+        putGEX.push(putGamma * putOI * 100);
     });
 
     const ctx = document.getElementById("gexChart").getContext("2d");
