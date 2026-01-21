@@ -2,47 +2,67 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Gamma Exposure Viewer</title>
+<title>Multi-Ticker Gamma Exposure</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
-    body {
-        background-color: #0e1117;
-        color: #e6edf3;
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 20px;
-    }
+body {
+    background-color: #0e1117;
+    color: #e6edf3;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+}
 
-    h2 {
-        margin-bottom: 10px;
-    }
+h2 {
+    margin-bottom: 5px;
+}
 
-    input[type="file"] {
-        margin-bottom: 15px;
-    }
+.chart-container {
+    margin-bottom: 40px;
+}
 
-    canvas {
-        background: #0e1117;
-        border-radius: 8px;
-    }
+input[type="file"] {
+    margin-bottom: 10px;
+}
+
+canvas {
+    background: #0e1117;
+    border-radius: 10px;
+}
 </style>
 </head>
 
 <body>
 
-<h2>Gamma Exposure (Calls vs Puts)</h2>
-<input type="file" id="csvFile">
+<h1>Gamma Exposure Dashboard</h1>
 
-<canvas id="gexChart" height="400"></canvas>
+<div class="chart-container">
+    <h2>Ticker 1</h2>
+    <input type="file" onchange="loadCSV(event, 0)">
+    <canvas id="chart0" height="300"></canvas>
+</div>
+
+<div class="chart-container">
+    <h2>Ticker 2</h2>
+    <input type="file" onchange="loadCSV(event, 1)">
+    <canvas id="chart1" height="300"></canvas>
+</div>
+
+<div class="chart-container">
+    <h2>Ticker 3</h2>
+    <input type="file" onchange="loadCSV(event, 2)">
+    <canvas id="chart2" height="300"></canvas>
+</div>
 
 <script>
-let chart;
+const charts = [];
 
 /* -------------------------------
-   SAFE NUMBER PARSER (CRITICAL)
+   SAFE NUMBER PARSER
 -------------------------------- */
 function toNumber(value) {
     if (value === null || value === undefined) return 0;
@@ -59,39 +79,40 @@ function toNumber(value) {
 }
 
 /* -------------------------------
-   CSV UPLOAD HANDLER
+   CSV LOADER
 -------------------------------- */
-document.getElementById("csvFile").addEventListener("change", function(e) {
-    const file = e.target.files[0];
+function loadCSV(event, chartIndex) {
+    const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(evt) {
-        const lines = evt.target.result.split("\n");
+    reader.onload = e => {
+        const lines = e.target.result.split("\n");
 
-        // Spot price is cell A5 (row index 4)
+        // Spot price = cell A5 (row index 4)
         const spot = toNumber(lines[4]?.split(",")[0]);
 
-        // Headers start at row 12 (index 11)
-        const headerLine = lines[11];
-        const dataLines = [headerLine, ...lines.slice(12)].join("\n");
+        // Header row starts at row 12 (index 11)
+        const header = lines[11];
+        const body = lines.slice(12);
+        const csvData = [header, ...body].join("\n");
 
-        Papa.parse(dataLines, {
+        Papa.parse(csvData, {
             header: true,
             skipEmptyLines: true,
-            complete: function(results) {
-                buildChart(results.data, spot);
+            complete: results => {
+                buildChart(results.data, spot, chartIndex);
             }
         });
     };
 
     reader.readAsText(file);
-});
+}
 
 /* -------------------------------
-   BUILD CHART
+   CHART BUILDER
 -------------------------------- */
-function buildChart(rows, spot) {
+function buildChart(rows, spot, index) {
 
     const strikes = [];
     const callGEX = [];
@@ -112,63 +133,76 @@ function buildChart(rows, spot) {
         putGEX.push(putGamma * putOI * 100 * spot);
     });
 
-    if (chart) chart.destroy();
+    if (charts[index]) charts[index].destroy();
 
-    chart = new Chart(document.getElementById("gexChart"), {
-        type: "line",
-        data: {
-            labels: strikes,
-            datasets: [
-                {
-                    label: "Call GEX",
-                    data: callGEX,
-                    borderColor: "#2ecc71", // GREEN
-                    borderWidth: 2,
-                    tension: 0.25
-                },
-                {
-                    label: "Put GEX",
-                    data: putGEX,
-                    borderColor: "#e74c3c", // RED
-                    borderWidth: 2,
-                    tension: 0.25
-                },
-                {
-                    label: "Spot Price",
-                    data: strikes.map(x => x === spot ? Math.max(...callGEX) : null),
-                    borderColor: "#ff4fd8", // PINK
-                    borderWidth: 2,
-                    borderDash: [6, 6],
-                    pointRadius: 0
-                }
-            ]
-        },
-        options: {
-            plugins: {
-                legend: {
-                    labels: { color: "#e6edf3" }
-                }
+    charts[index] = new Chart(
+        document.getElementById(`chart${index}`),
+        {
+            type: "line",
+            data: {
+                labels: strikes,
+                datasets: [
+                    {
+                        label: "Call GEX",
+                        data: callGEX,
+                        borderColor: "#2ecc71", // GREEN
+                        borderWidth: 2,
+                        tension: 0.25
+                    },
+                    {
+                        label: "Put GEX",
+                        data: putGEX,
+                        borderColor: "#e74c3c", // RED
+                        borderWidth: 2,
+                        tension: 0.25
+                    }
+                ]
             },
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: "Strike Price",
-                        color: "#e6edf3"
+            options: {
+                plugins: {
+                    legend: {
+                        labels: { color: "#e6edf3" }
                     },
-                    ticks: { color: "#e6edf3" }
+                    annotation: {
+                        annotations: {
+                            spotLine: {
+                                type: "line",
+                                xMin: spot,
+                                xMax: spot,
+                                borderColor: "#ff4fd8", // PINK
+                                borderWidth: 2,
+                                borderDash: [6, 6],
+                                label: {
+                                    enabled: true,
+                                    content: "Spot",
+                                    color: "#ff4fd8",
+                                    position: "top"
+                                }
+                            }
+                        }
+                    }
                 },
-                y: {
-                    title: {
-                        display: true,
-                        text: "Gamma Exposure",
-                        color: "#e6edf3"
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: "Strike",
+                            color: "#e6edf3"
+                        },
+                        ticks: { color: "#e6edf3" }
                     },
-                    ticks: { color: "#e6edf3" }
+                    y: {
+                        title: {
+                            display: true,
+                            text: "Gamma Exposure",
+                            color: "#e6edf3"
+                        },
+                        ticks: { color: "#e6edf3" }
+                    }
                 }
             }
         }
-    });
+    );
 }
 </script>
 
