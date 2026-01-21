@@ -10,6 +10,10 @@
 <!-- Annotation Plugin (COMPATIBLE WITH v3) -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
 
+<!-- Zoom Plugin (COMPATIBLE WITH v3) -->
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1"></script>
+
 <!-- Papa Parse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
@@ -27,13 +31,32 @@ h2 { margin-bottom: 5px; }
 
 .chart-container {
     margin: 0 auto 40px auto;
-    height: 300px;
+    height: 390px;
     max-width: 1100px;
 }
 
 canvas {
     background: #0e1117;
     border-radius: 10px;
+}
+
+.controls {
+    margin: 10px 0;
+}
+
+.controls button {
+    background-color: #2ecc71;
+    color: #0e1117;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.controls button:hover {
+    background-color: #27ae60;
 }
 </style>
 </head>
@@ -45,23 +68,38 @@ canvas {
 <div class="chart-container">
     <h2>Ticker 1</h2>
     <input type="file" onchange="loadCSV(event, 0)">
+    <div class="controls">
+        <button onclick="resetZoom(0)">Reset Zoom</button>
+    </div>
     <canvas id="chart0"></canvas>
 </div>
 
 <div class="chart-container">
     <h2>Ticker 2</h2>
     <input type="file" onchange="loadCSV(event, 1)">
+    <div class="controls">
+        <button onclick="resetZoom(1)">Reset Zoom</button>
+    </div>
     <canvas id="chart1"></canvas>
 </div>
 
 <div class="chart-container">
     <h2>Ticker 3</h2>
     <input type="file" onchange="loadCSV(event, 2)">
+    <div class="controls">
+        <button onclick="resetZoom(2)">Reset Zoom</button>
+    </div>
     <canvas id="chart2"></canvas>
 </div>
 
 <script>
 const charts = [];
+
+function resetZoom(index) {
+    if (charts[index]) {
+        charts[index].resetZoom();
+    }
+}
 
 function toNumber(value) {
     if (value === null || value === undefined) return 0;
@@ -156,6 +194,22 @@ function buildChart(rows, spot, index) {
                 plugins: {
                     legend: {
                         labels: { color: "#e6edf3" }
+                    },
+                    zoom: {
+                        zoom: {
+                            wheel: {
+                                enabled: true,
+                                speed: 0.1
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            mode: 'xy'
+                        },
+                        pan: {
+                            enabled: true,
+                            mode: 'xy'
+                        }
                     },
                     annotation: {
                         annotations: {
