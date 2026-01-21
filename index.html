@@ -4,13 +4,14 @@
 <meta charset="UTF-8">
 <title>Multi-Ticker Gamma Exposure</title>
 
+<!-- Chart.js v3 (LOCKED VERSION) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
-<script>
-  Chart.register(window['chartjs-plugin-annotation']);
-</script>
+<!-- Annotation Plugin (COMPATIBLE WITH v3) -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
+
+<!-- Papa Parse -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
 body {
@@ -58,6 +59,7 @@ canvas {
     <input type="file" onchange="loadCSV(event, 2)">
     <canvas id="chart2"></canvas>
 </div>
+
 <script>
 const charts = [];
 
@@ -136,42 +138,48 @@ function buildChart(rows, spot, index) {
                         data: callGEX,
                         borderColor: "#2ecc71",
                         borderWidth: 2,
-                        tension: 0.25
+                        tension: 0.25,
+                        pointRadius: 0
                     },
                     {
                         label: "Put GEX",
                         data: putGEX,
                         borderColor: "#e74c3c",
                         borderWidth: 2,
-                        tension: 0.25
+                        tension: 0.25,
+                        pointRadius: 0
                     }
                 ]
             },
             options: {
                 maintainAspectRatio: false,
-               plugins: {
-  legend: {
-    labels: { color: "#e6edf3" }
-  },
-  annotation: {
-    annotations: [
-      {
-        type: "line",
-        scaleID: "x",
-        value: spot,
-        borderColor: "#ff4fd8",
-        borderWidth: 2,
-        borderDash: [6, 6],
-        label: {
-          enabled: true,
-          content: `Spot ${spot}`,
-          position: "top",
-          color: "#ff4fd8"
-        }
-      }
-    ]
-  }
-}
+                plugins: {
+                    legend: {
+                        labels: { color: "#e6edf3" }
+                    },
+                    annotation: {
+                        annotations: {
+                            spotLine: {
+                                type: "line",
+                                scaleID: "x",
+                                value: spot,
+                                borderColor: "#ff4fd8",
+                                borderWidth: 3,
+                                borderDash: [6, 6],
+                                label: {
+                                    display: true,
+                                    content: `Spot: $${spot.toFixed(2)}`,
+                                    position: "start",
+                                    backgroundColor: "#ff4fd8",
+                                    color: "#0e1117",
+                                    font: {
+                                        weight: 'bold'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 scales: {
                     x: {
                         type: "linear",
@@ -196,3 +204,6 @@ function buildChart(rows, spot, index) {
     );
 }
 </script>
+
+</body>
+</html>
