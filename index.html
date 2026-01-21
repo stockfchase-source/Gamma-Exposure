@@ -151,20 +151,22 @@ function buildChart(data, spot) {
         plugins: [spotLinePlugin],
         data: {
             labels: strikes,
-            datasets: [
-                {
-                    label: "Call GEX",
-                    data: callGEX,
-                    borderColor: "#2ecc71", // GREEN
-                    tension: 0.25
-                },
-                {
-                    label: "Put GEX",
-                    data: putGEX,
-                    borderColor: "#e74c3c", // RED
-                    tension: 0.25
-                }
-            ]
+    datasets: [
+    {
+        label: "Call GEX",
+        data: callGEX,
+        borderColor: "#2ecc71", // GREEN = CALLS
+        borderWidth: 2,
+        tension: 0.25
+    },
+    {
+        label: "Put GEX",
+        data: putGEX,
+        borderColor: "#e74c3c", // RED = PUTS
+        borderWidth: 2,
+        tension: 0.25
+    }
+]
         },
         options: {
             responsive: true,
