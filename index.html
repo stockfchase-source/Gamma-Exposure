@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <title>Multi-Ticker Gamma Exposure</title>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Chart.js v3 (LOCKED VERSION) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
 
-<!-- Annotation Plugin (REQUIRED for spot line) -->
+<!-- Annotation Plugin (COMPATIBLE WITH v3) -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
 
-<!-- CSV Parser -->
+<!-- Papa Parse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
@@ -22,13 +22,8 @@ body {
     padding: 20px;
 }
 
-h1 {
-    margin-bottom: 20px;
-}
-
-h2 {
-    margin-bottom: 5px;
-}
+h1 { margin-bottom: 20px; }
+h2 { margin-bottom: 5px; }
 
 .chart-container {
     margin: 0 auto 40px auto;
@@ -67,17 +62,12 @@ canvas {
 
 <script>
 /* =========================================================
-   REQUIRED: REGISTER ANNOTATION PLUGIN (DO NOT REMOVE)
-========================================================= */
-Chart.register(ChartAnnotation);
-
-/* =========================================================
    GLOBAL STATE
 ========================================================= */
 const charts = [];
 
 /* =========================================================
-   SAFE NUMBER PARSER (Handles "7,255")
+   SAFE NUMBER PARSER
 ========================================================= */
 function toNumber(value) {
     if (value === null || value === undefined) return 0;
@@ -94,7 +84,7 @@ function toNumber(value) {
 }
 
 /* =========================================================
-   CSV LOADER (One chart at a time)
+   CSV LOADER
 ========================================================= */
 function loadCSV(event, chartIndex) {
     const file = event.target.files[0];
@@ -104,10 +94,10 @@ function loadCSV(event, chartIndex) {
     reader.onload = e => {
         const lines = e.target.result.split("\n");
 
-        // Spot price from Thinkorswim cell A5
+        // Spot price (cell A5)
         const spot = toNumber(lines[4]?.split(",")[0]);
 
-        // Headers start at row 12 (index 11)
+        // Header row (row 12)
         const header = lines[11];
         const body = lines.slice(12);
         const csvData = [header, ...body].join("\n");
@@ -160,14 +150,14 @@ function buildChart(rows, spot, index) {
                     {
                         label: "Call GEX",
                         data: callGEX,
-                        borderColor: "#2ecc71", // GREEN
+                        borderColor: "#2ecc71",
                         borderWidth: 2,
                         tension: 0.25
                     },
                     {
                         label: "Put GEX",
                         data: putGEX,
-                        borderColor: "#e74c3c", // RED
+                        borderColor: "#e74c3c",
                         borderWidth: 2,
                         tension: 0.25
                     }
@@ -185,7 +175,7 @@ function buildChart(rows, spot, index) {
                                 type: "line",
                                 xMin: spot,
                                 xMax: spot,
-                                borderColor: "#ff4fd8", // PINK
+                                borderColor: "#ff4fd8",
                                 borderWidth: 2,
                                 borderDash: [6, 6],
                                 label: {
@@ -199,19 +189,11 @@ function buildChart(rows, spot, index) {
                 },
                 scales: {
                     x: {
-                        title: {
-                            display: true,
-                            text: "Strike",
-                            color: "#e6edf3"
-                        },
+                        title: { display: true, text: "Strike", color: "#e6edf3" },
                         ticks: { color: "#e6edf3" }
                     },
                     y: {
-                        title: {
-                            display: true,
-                            text: "Gamma Exposure",
-                            color: "#e6edf3"
-                        },
+                        title: { display: true, text: "Gamma Exposure", color: "#e6edf3" },
                         ticks: { color: "#e6edf3" }
                     }
                 }
