@@ -111,10 +111,12 @@ function handleFile(event, chartIndex) {
 }
 
 function buildChart(rows, spot, index) {
+    console.table(rows.slice(0, 5));
+    
     const strikes = [];
     const callGEX = [];
     const putGEX = [];
-console.table(rows.slice(0, 5));
+
     rows.forEach(r => {
         const strike = parseFloat(r["Strike"]);
         if (isNaN(strike)) return;
