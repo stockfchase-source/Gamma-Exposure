@@ -4,15 +4,15 @@
 <meta charset="UTF-8">
 <title>Multi-Ticker Gamma Exposure</title>
 
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Annotation Plugin (REQUIRED for spot line) -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
+
+<!-- CSV Parser -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-    
-<script>
-const charts = [];
-Chart.register(ChartAnnotation); // 👈 HERE
-</script>
-    
+
 <style>
 body {
     background-color: #0e1117;
@@ -20,6 +20,10 @@ body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 20px;
+}
+
+h1 {
+    margin-bottom: 20px;
 }
 
 h2 {
@@ -62,10 +66,19 @@ canvas {
 </div>
 
 <script>
+/* =========================================================
+   REQUIRED: REGISTER ANNOTATION PLUGIN (DO NOT REMOVE)
+========================================================= */
+Chart.register(ChartAnnotation);
+
+/* =========================================================
+   GLOBAL STATE
+========================================================= */
 const charts = [];
-/* -------------------------------
-   SAFE NUMBER PARSER
--------------------------------- */
+
+/* =========================================================
+   SAFE NUMBER PARSER (Handles "7,255")
+========================================================= */
 function toNumber(value) {
     if (value === null || value === undefined) return 0;
     if (typeof value === "number") return value;
@@ -80,9 +93,9 @@ function toNumber(value) {
     return isNaN(num) ? 0 : num;
 }
 
-/* -------------------------------
-   CSV LOADER
--------------------------------- */
+/* =========================================================
+   CSV LOADER (One chart at a time)
+========================================================= */
 function loadCSV(event, chartIndex) {
     const file = event.target.files[0];
     if (!file) return;
@@ -91,8 +104,10 @@ function loadCSV(event, chartIndex) {
     reader.onload = e => {
         const lines = e.target.result.split("\n");
 
+        // Spot price from Thinkorswim cell A5
         const spot = toNumber(lines[4]?.split(",")[0]);
 
+        // Headers start at row 12 (index 11)
         const header = lines[11];
         const body = lines.slice(12);
         const csvData = [header, ...body].join("\n");
@@ -109,9 +124,9 @@ function loadCSV(event, chartIndex) {
     reader.readAsText(file);
 }
 
-/* -------------------------------
+/* =========================================================
    CHART BUILDER
--------------------------------- */
+========================================================= */
 function buildChart(rows, spot, index) {
 
     const strikes = [];
@@ -145,14 +160,14 @@ function buildChart(rows, spot, index) {
                     {
                         label: "Call GEX",
                         data: callGEX,
-                        borderColor: "#2ecc71",
+                        borderColor: "#2ecc71", // GREEN
                         borderWidth: 2,
                         tension: 0.25
                     },
                     {
                         label: "Put GEX",
                         data: putGEX,
-                        borderColor: "#e74c3c",
+                        borderColor: "#e74c3c", // RED
                         borderWidth: 2,
                         tension: 0.25
                     }
@@ -170,7 +185,7 @@ function buildChart(rows, spot, index) {
                                 type: "line",
                                 xMin: spot,
                                 xMax: spot,
-                                borderColor: "#ff4fd8",
+                                borderColor: "#ff4fd8", // PINK
                                 borderWidth: 2,
                                 borderDash: [6, 6],
                                 label: {
@@ -184,11 +199,19 @@ function buildChart(rows, spot, index) {
                 },
                 scales: {
                     x: {
-                        title: { display: true, text: "Strike", color: "#e6edf3" },
+                        title: {
+                            display: true,
+                            text: "Strike",
+                            color: "#e6edf3"
+                        },
                         ticks: { color: "#e6edf3" }
                     },
                     y: {
-                        title: { display: true, text: "Gamma Exposure", color: "#e6edf3" },
+                        title: {
+                            display: true,
+                            text: "Gamma Exposure",
+                            color: "#e6edf3"
+                        },
                         ticks: { color: "#e6edf3" }
                     }
                 }
