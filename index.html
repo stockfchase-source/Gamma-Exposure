@@ -1,43 +1,69 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Gamma Exposure Calculator</title>
+<meta charset="UTF-8">
+<title>Gamma Exposure Viewer</title>
 
-    <!-- Papa Parse CSV Library -->
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
-        }
-        table {
-            border-collapse: collapse;
-            margin-top: 20px;
-            width: 100%;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 6px 10px;
-            text-align: right;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-        th:first-child, td:first-child {
-            text-align: left;
-        }
-    </style>
+<style>
+:root {
+    --bg: #0e1117;
+    --panel: #161b22;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --call: #2ecc71;
+    --put: #e74c3c;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, system-ui, Arial, sans-serif;
+    margin: 40px;
+}
+
+h1 {
+    margin-bottom: 5px;
+}
+
+p {
+    color: var(--muted);
+}
+
+.container {
+    max-width: 1100px;
+}
+
+input {
+    margin-top: 15px;
+}
+
+.card {
+    background: var(--panel);
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 25px;
+}
+
+canvas {
+    margin-top: 20px;
+}
+</style>
 </head>
+
 <body>
+<div class="container">
+    <h1>Gamma Exposure</h1>
+    <p>Thinkorswim CSV → Call & Put GEX visualization</p>
 
-<h1>Gamma Exposure Calculator</h1>
-<p>Upload a Thinkorswim options chain CSV.</p>
+    <input type="file" id="fileInput" accept=".csv">
 
-<input type="file" id="fileInput" accept=".csv">
-
-<div id="output"></div>
+    <div class="card">
+        <canvas id="gexChart"></canvas>
+    </div>
+</div>
 
 <script>
 document.getElementById("fileInput").addEventListener("change", function(event) {
@@ -45,67 +71,109 @@ document.getElementById("fileInput").addEventListener("change", function(event) 
     if (!file) return;
 
     const reader = new FileReader();
-
     reader.onload = function(e) {
         const text = e.target.result;
+        const lines = text.split(/\r?\n/);
+
+        // Spot price is in cell A5 (row index 4)
+        const spotPrice = parseFloat(lines[4].split(",")[0]);
+        if (isNaN(spotPrice)) {
+            alert("Could not detect spot price in cell A5.");
+            return;
+        }
 
         // Remove Thinkorswim metadata rows
-        const lines = text.split(/\r?\n/);
         const dataLines = lines.slice(11).join("\n");
 
         Papa.parse(dataLines, {
             header: true,
             skipEmptyLines: true,
             complete: function(results) {
-                calculateGEX(results.data);
+                buildChart(results.data, spotPrice);
             }
         });
     };
-
     reader.readAsText(file);
 });
 
-function calculateGEX(data) {
-    const spotPrice = parseFloat(prompt("Enter current underlying price:"));
-    if (!spotPrice || isNaN(spotPrice)) return;
-
-    let html = `
-        <h2>Gamma Exposure by Strike</h2>
-        <table>
-            <tr>
-                <th>Strike</th>
-                <th>Call GEX</th>
-                <th>Put GEX</th>
-                <th>Net GEX</th>
-            </tr>
-    `;
+function buildChart(data, spot) {
+    const strikes = [];
+    const callGEX = [];
+    const putGEX = [];
 
     data.forEach(row => {
         const strike = parseFloat(row["Strike"]);
         if (isNaN(strike)) return;
 
-        const callOI = parseFloat(row["Open.Int"]) || 0;
-        const callGamma = parseFloat(row["Gamma"]) || 0;
+        const cOI = parseFloat(row["Open.Int"]) || 0;
+        const cGamma = parseFloat(row["Gamma"]) || 0;
 
-        const putOI = parseFloat(row["Open.Int_1"]) || 0;
-        const putGamma = parseFloat(row["Gamma_1"]) || 0;
+        const pOI = parseFloat(row["Open.Int_1"]) || 0;
+        const pGamma = parseFloat(row["Gamma_1"]) || 0;
 
-        const callGEX = callGamma * callOI * 100 * spotPrice;
-        const putGEX = putGamma * putOI * 100 * spotPrice;
-
-        const netGEX = callGEX - putGEX;
-
-        html += `
-            <tr>
-                <td>${strike}</td>
-                <td>${callGEX.toLocaleString()}</td>
-                <td>${(-putGEX).toLocaleString()}</td>
-                <td><strong>${netGEX.toLocaleString()}</strong></td>
-            </tr>
-        `;
+        strikes.push(strike);
+        callGEX.push(cGamma * cOI * 100 * spot);
+        putGEX.push(pGamma * pOI * 100 * spot);
     });
 
-    html += "</table>";
-    document.getElementById("output").innerHTML = html;
+    const ctx = document.getElementById("gexChart").getContext("2d");
+    if (window.chart) window.chart.destroy();
+
+    window.chart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: strikes,
+            datasets: [
+                {
+                    label: "Call GEX",
+                    data: callGEX,
+                    borderColor: getComputedStyle(document.documentElement).getPropertyValue('--call'),
+                    tension: 0.25
+                },
+                {
+                    label: "Put GEX",
+                    data: putGEX,
+                    borderColor: getComputedStyle(document.documentElement).getPropertyValue('--put'),
+                    tension: 0.25
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    labels: { color: "#e6edf3" }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ctx.dataset.label + ": " + ctx.parsed.y.toLocaleString()
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: "#8b949e" },
+                    title: {
+                        display: true,
+                        text: "Strike",
+                        color: "#8b949e"
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: "#8b949e",
+                        callback: val => val.toLocaleString()
+                    },
+                    title: {
+                        display: true,
+                        text: "Gamma Exposure",
+                        color: "#8b949e"
+                    }
+                }
+            }
+        }
+    });
 }
 </script>
+</body>
+</html>
