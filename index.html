@@ -49,18 +49,15 @@ document.getElementById("fileInput").addEventListener("change", function(event) 
     reader.onload = function(e) {
         const text = e.target.result;
 
-        // Split into lines
+        // Remove Thinkorswim metadata rows
         const lines = text.split(/\r?\n/);
-
-        // Thinkorswim headers usually start on row 12 (index 11)
         const dataLines = lines.slice(11).join("\n");
 
         Papa.parse(dataLines, {
             header: true,
             skipEmptyLines: true,
             complete: function(results) {
-                console.log("Parsed CSV:", results.data);
-                showColumnNames(results.data);
+                calculateGEX(results.data);
             }
         });
     };
@@ -68,17 +65,47 @@ document.getElementById("fileInput").addEventListener("change", function(event) 
     reader.readAsText(file);
 });
 
-function showColumnNames(data) {
-    if (!data.length) return;
+function calculateGEX(data) {
+    const spotPrice = parseFloat(prompt("Enter current underlying price:"));
+    if (!spotPrice || isNaN(spotPrice)) return;
 
-    const columns = Object.keys(data[0]);
+    let html = `
+        <h2>Gamma Exposure by Strike</h2>
+        <table>
+            <tr>
+                <th>Strike</th>
+                <th>Call GEX</th>
+                <th>Put GEX</th>
+                <th>Net GEX</th>
+            </tr>
+    `;
 
-    let html = "<h2>Detected Columns</h2><ul>";
-    columns.forEach(col => {
-        html += `<li>${col}</li>`;
+    data.forEach(row => {
+        const strike = parseFloat(row["Strike"]);
+        if (isNaN(strike)) return;
+
+        const callOI = parseFloat(row["Open.Int"]) || 0;
+        const callGamma = parseFloat(row["Gamma"]) || 0;
+
+        const putOI = parseFloat(row["Open.Int_1"]) || 0;
+        const putGamma = parseFloat(row["Gamma_1"]) || 0;
+
+        const callGEX = callGamma * callOI * 100 * spotPrice;
+        const putGEX = putGamma * putOI * 100 * spotPrice;
+
+        const netGEX = callGEX - putGEX;
+
+        html += `
+            <tr>
+                <td>${strike}</td>
+                <td>${callGEX.toLocaleString()}</td>
+                <td>${(-putGEX).toLocaleString()}</td>
+                <td><strong>${netGEX.toLocaleString()}</strong></td>
+            </tr>
+        `;
     });
-    html += "</ul>";
 
+    html += "</table>";
     document.getElementById("output").innerHTML = html;
 }
 </script>
