@@ -4,14 +4,13 @@
 <meta charset="UTF-8">
 <title>Multi-Ticker Gamma Exposure</title>
 
-<!-- Chart.js v3 (LOCKED VERSION) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
-
-<!-- Annotation Plugin (COMPATIBLE WITH v3) -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
-
-<!-- Papa Parse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<script>
+  Chart.register(window['chartjs-plugin-annotation']);
+</script>
 
 <style>
 body {
@@ -150,30 +149,29 @@ function buildChart(rows, spot, index) {
             },
             options: {
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        labels: { color: "#e6edf3" }
-                    },
-                    annotation: {
-                        annotations: {
-                            spotLine: {
-                                type: "line",
-                                scaleID: "x",
-                                xMin: spot,
-                                xMax: spot,
-                                borderColor: "#ff4fd8",
-                                borderWidth: 2,
-                                borderDash: [6, 6],
-                                label: {
-                                    enabled: true,
-                                    content: `Spot ${spot}`,
-                                    position: "start",
-                                    color: "#ff4fd8"
-                                }
-                            }
-                        }
-                    }
-                },
+               plugins: {
+  legend: {
+    labels: { color: "#e6edf3" }
+  },
+  annotation: {
+    annotations: [
+      {
+        type: "line",
+        scaleID: "x",
+        value: spot,
+        borderColor: "#ff4fd8",
+        borderWidth: 2,
+        borderDash: [6, 6],
+        label: {
+          enabled: true,
+          content: `Spot ${spot}`,
+          position: "top",
+          color: "#ff4fd8"
+        }
+      }
+    ]
+  }
+}
                 scales: {
                     x: {
                         type: "linear",
