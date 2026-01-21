@@ -16,21 +16,6 @@
     --call: #2ecc71;
     --put: #e74c3c;
 }
-.grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-}
-
-.card h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    color: var(--muted);
-}
-
-input[type="file"] {
-    margin-bottom: 10px;
-}
 body {
     background: var(--bg);
     color: var(--text);
@@ -95,25 +80,25 @@ canvas {
 </body>
 
 <script>
-const charts = {}; // store chart instances by index
+const charts = {};
 
 function handleFile(event, chartIndex) {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = e => {
         const text = e.target.result;
         const lines = text.split(/\r?\n/);
 
-        // Spot price from A5
+        // Spot price from Thinkorswim cell A5
         const spot = parseFloat(lines[4].split(",")[0]);
         if (isNaN(spot)) {
-            alert("Spot price not found in A5");
+            alert("Spot price not found in cell A5");
             return;
         }
 
-        // Remove metadata
+        // Remove Thinkorswim metadata rows
         const dataLines = lines.slice(11).join("\n");
 
         Papa.parse(dataLines, {
@@ -125,41 +110,43 @@ function handleFile(event, chartIndex) {
     reader.readAsText(file);
 }
 
-function buildChart(data, spot, index) {
+function buildChart(rows, spot, index) {
     const strikes = [];
     const callGEX = [];
     const putGEX = [];
 
-    data.forEach(row => {
-        const strike = parseFloat(row["Strike"]);
+    rows.forEach(r => {
+        const strike = parseFloat(r["Strike"]);
         if (isNaN(strike)) return;
 
-        const cG = parseFloat(row["Gamma"]) || 0;
-        const cOI = parseFloat(row["Open.Int"]) || 0;
+        // CALL SIDE (LEFT)
+        const callGamma = parseFloat(r["Gamma"]) || 0;
+        const callOI = parseFloat(r["Open.Int"]) || 0;
 
-        const pG = parseFloat(row["Gamma_1"]) || 0;
-        const pOI = parseFloat(row["Open.Int_1"]) || 0;
+        // PUT SIDE (RIGHT)
+        const putGamma = parseFloat(r["Gamma_1"]) || 0;
+        const putOI = parseFloat(r["Open.Int_1"]) || 0;
 
         strikes.push(strike);
-        callGEX.push(cG * cOI * 100 * spot);
-        putGEX.push(pG * pOI * 100 * spot);
+        callGEX.push(callGamma * callOI * 100 * spot);
+        putGEX.push(putGamma * putOI * 100 * spot);
     });
 
     const ctx = document.getElementById(`chart${index}`).getContext("2d");
     if (charts[index]) charts[index].destroy();
 
-    const spotLine = {
+    const spotLinePlugin = {
         id: "spotLine",
         afterDraw(chart) {
             const xScale = chart.scales.x;
             const yScale = chart.scales.y;
-            const i = strikes.findIndex(s => s >= spot);
-            if (i === -1) return;
+            const idx = strikes.findIndex(s => s >= spot);
+            if (idx === -1) return;
 
-            const x = xScale.getPixelForValue(i);
+            const x = xScale.getPixelForValue(idx);
             const c = chart.ctx;
             c.save();
-            c.strokeStyle = "#ff4d9d";
+            c.strokeStyle = "#ff4d9d"; // pink
             c.setLineDash([6,6]);
             c.lineWidth = 2;
             c.beginPath();
@@ -172,21 +159,21 @@ function buildChart(data, spot, index) {
 
     charts[index] = new Chart(ctx, {
         type: "line",
-        plugins: [spotLine],
+        plugins: [spotLinePlugin],
         data: {
             labels: strikes,
             datasets: [
                 {
                     label: "Call GEX",
                     data: callGEX,
-                    borderColor: "#e74c3c",
+                    borderColor: "#2ecc71", // ✅ GREEN = CALLS
                     borderWidth: 2,
                     tension: 0.25
                 },
                 {
                     label: "Put GEX",
                     data: putGEX,
-                    borderColor: "#2ecc71",
+                    borderColor: "#e74c3c", // ✅ RED = PUTS
                     borderWidth: 2,
                     tension: 0.25
                 }
@@ -195,7 +182,9 @@ function buildChart(data, spot, index) {
         options: {
             responsive: true,
             plugins: {
-                legend: { labels: { color: "#e6edf3" } }
+                legend: {
+                    labels: { color: "#e6edf3" }
+                }
             },
             scales: {
                 x: {
