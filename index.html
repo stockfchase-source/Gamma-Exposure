@@ -4,185 +4,146 @@
 <meta charset="UTF-8">
 <title>Gamma Exposure Viewer</title>
 
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
-:root {
-    --bg: #0e1117;
-    --panel: #161b22;
-    --text: #e6edf3;
-    --muted: #8b949e;
-    --call: #2ecc71;
-    --put: #e74c3c;
-}
-body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: Inter, system-ui, Arial, sans-serif;
-    margin: 40px;
-}
+    body {
+        background-color: #0e1117;
+        color: #e6edf3;
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+    }
 
-h1 {
-    margin-bottom: 5px;
-}
+    h2 {
+        margin-bottom: 10px;
+    }
 
-p {
-    color: var(--muted);
-}
+    input[type="file"] {
+        margin-bottom: 15px;
+    }
 
-.container {
-    max-width: 1100px;
-}
-
-input {
-    margin-top: 15px;
-}
-
-.card {
-    background: var(--panel);
-    padding: 20px;
-    border-radius: 10px;
-    margin-top: 25px;
-}
-
-canvas {
-    margin-top: 20px;
-}
+    canvas {
+        background: #0e1117;
+        border-radius: 8px;
+    }
 </style>
 </head>
 
 <body>
-<div class="container">
-    <h1>Multi-Ticker Gamma Exposure</h1>
-    <p>Upload up to three Thinkorswim CSVs. Each chart updates independently.</p>
 
-    <div class="grid">
-        <div class="card">
-            <h3>Ticker 1</h3>
-            <input type="file" accept=".csv" onchange="handleFile(event, 0)">
-            <canvas id="chart0"></canvas>
-        </div>
+<h2>Gamma Exposure (Calls vs Puts)</h2>
+<input type="file" id="csvFile">
 
-        <div class="card">
-            <h3>Ticker 2</h3>
-            <input type="file" accept=".csv" onchange="handleFile(event, 1)">
-            <canvas id="chart1"></canvas>
-        </div>
-
-        <div class="card">
-            <h3>Ticker 3</h3>
-            <input type="file" accept=".csv" onchange="handleFile(event, 2)">
-            <canvas id="chart2"></canvas>
-        </div>
-    </div>
-</div>
-</body>
+<canvas id="gexChart" height="400"></canvas>
 
 <script>
-const charts = {};
+let chart;
 
-function handleFile(event, chartIndex) {
-    const file = event.target.files[0];
+/* -------------------------------
+   SAFE NUMBER PARSER (CRITICAL)
+-------------------------------- */
+function toNumber(value) {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === "number") return value;
+
+    const cleaned = value
+        .toString()
+        .replace(/"/g, "")
+        .replace(/,/g, "")
+        .trim();
+
+    const num = Number(cleaned);
+    return isNaN(num) ? 0 : num;
+}
+
+/* -------------------------------
+   CSV UPLOAD HANDLER
+-------------------------------- */
+document.getElementById("csvFile").addEventListener("change", function(e) {
+    const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = e => {
-        const text = e.target.result;
-        const lines = text.split(/\r?\n/);
+    reader.onload = function(evt) {
+        const lines = evt.target.result.split("\n");
 
-        // Spot price from Thinkorswim cell A5
-        const spot = parseFloat(lines[4].split(",")[0]);
-        if (isNaN(spot)) {
-            alert("Spot price not found in cell A5");
-            return;
-        }
+        // Spot price is cell A5 (row index 4)
+        const spot = toNumber(lines[4]?.split(",")[0]);
 
-        // Remove Thinkorswim metadata rows
-        const dataLines = lines.slice(11).join("\n");
+        // Headers start at row 12 (index 11)
+        const headerLine = lines[11];
+        const dataLines = [headerLine, ...lines.slice(12)].join("\n");
 
         Papa.parse(dataLines, {
             header: true,
             skipEmptyLines: true,
-            complete: res => buildChart(res.data, spot, chartIndex)
+            complete: function(results) {
+                buildChart(results.data, spot);
+            }
         });
     };
-    reader.readAsText(file);
-}
 
-function buildChart(rows, spot, index) {
-    console.table(rows.slice(0, 5));
-    
+    reader.readAsText(file);
+});
+
+/* -------------------------------
+   BUILD CHART
+-------------------------------- */
+function buildChart(rows, spot) {
+
     const strikes = [];
     const callGEX = [];
-    const putGEX = [];
+    const putGEX  = [];
 
     rows.forEach(r => {
-        const strike = parseFloat(r["Strike"]);
-        if (isNaN(strike)) return;
+        const strike = toNumber(r["Strike"]);
+        if (!strike) return;
 
-        // CALL SIDE (LEFT)
-        const callGamma = parseFloat(r["Gamma"]) || 0;
-        const callOI = parseFloat(r["Open.Int"]) || 0;
+        const callGamma = toNumber(r["Gamma"]);
+        const callOI    = toNumber(r["Open.Int"]);
 
-        // PUT SIDE (RIGHT)
-        const putGamma = parseFloat(r["Gamma_1"]) || 0;
-        const putOI = parseFloat(r["Open.Int_1"]) || 0;
+        const putGamma  = toNumber(r["Gamma_1"]);
+        const putOI     = toNumber(r["Open.Int_1"]);
 
         strikes.push(strike);
         callGEX.push(callGamma * callOI * 100 * spot);
         putGEX.push(putGamma * putOI * 100 * spot);
     });
 
-    const ctx = document.getElementById(`chart${index}`).getContext("2d");
-    if (charts[index]) charts[index].destroy();
+    if (chart) chart.destroy();
 
-    const spotLinePlugin = {
-        id: "spotLine",
-        afterDraw(chart) {
-            const xScale = chart.scales.x;
-            const yScale = chart.scales.y;
-            const idx = strikes.findIndex(s => s >= spot);
-            if (idx === -1) return;
-
-            const x = xScale.getPixelForValue(idx);
-            const c = chart.ctx;
-            c.save();
-            c.strokeStyle = "#ff4d9d"; // pink
-            c.setLineDash([6,6]);
-            c.lineWidth = 2;
-            c.beginPath();
-            c.moveTo(x, yScale.top);
-            c.lineTo(x, yScale.bottom);
-            c.stroke();
-            c.restore();
-        }
-    };
-
-    charts[index] = new Chart(ctx, {
+    chart = new Chart(document.getElementById("gexChart"), {
         type: "line",
-        plugins: [spotLinePlugin],
         data: {
             labels: strikes,
             datasets: [
                 {
                     label: "Call GEX",
                     data: callGEX,
-                    borderColor: "#2ecc71", // ✅ GREEN = CALLS
+                    borderColor: "#2ecc71", // GREEN
                     borderWidth: 2,
                     tension: 0.25
                 },
                 {
                     label: "Put GEX",
                     data: putGEX,
-                    borderColor: "#e74c3c", // ✅ RED = PUTS
+                    borderColor: "#e74c3c", // RED
                     borderWidth: 2,
                     tension: 0.25
+                },
+                {
+                    label: "Spot Price",
+                    data: strikes.map(x => x === spot ? Math.max(...callGEX) : null),
+                    borderColor: "#ff4fd8", // PINK
+                    borderWidth: 2,
+                    borderDash: [6, 6],
+                    pointRadius: 0
                 }
             ]
         },
         options: {
-            responsive: true,
             plugins: {
                 legend: {
                     labels: { color: "#e6edf3" }
@@ -190,22 +151,26 @@ function buildChart(rows, spot, index) {
             },
             scales: {
                 x: {
-                    ticks: { color: "#8b949e" },
-                    title: { display: true, text: "Strike", color: "#8b949e" }
+                    title: {
+                        display: true,
+                        text: "Strike Price",
+                        color: "#e6edf3"
+                    },
+                    ticks: { color: "#e6edf3" }
                 },
                 y: {
-                    ticks: {
-                        color: "#8b949e",
-                        callback: v => v.toLocaleString()
-                    },
                     title: {
                         display: true,
                         text: "Gamma Exposure",
-                        color: "#8b949e"
-                    }
+                        color: "#e6edf3"
+                    },
+                    ticks: { color: "#e6edf3" }
                 }
             }
         }
     });
 }
 </script>
+
+</body>
+</html>
