@@ -51,22 +51,54 @@ canvas {
     margin-top: 20px;
 }
 </style>
+    .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.card h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: var(--muted);
+}
+
+input[type="file"] {
+    margin-bottom: 10px;
+} 
 </head>
 
 <body>
 <div class="container">
-    <h1>Gamma Exposure</h1>
-    <p>Thinkorswim CSV → Call & Put GEX visualization</p>
+    <h1>Multi-Ticker Gamma Exposure</h1>
+    <p>Upload up to three Thinkorswim CSVs. Each chart updates independently.</p>
 
-    <input type="file" id="fileInput" accept=".csv">
+    <div class="grid">
+        <div class="card">
+            <h3>Ticker 1</h3>
+            <input type="file" accept=".csv" onchange="handleFile(event, 0)">
+            <canvas id="chart0"></canvas>
+        </div>
 
-    <div class="card">
-        <canvas id="gexChart"></canvas>
+        <div class="card">
+            <h3>Ticker 2</h3>
+            <input type="file" accept=".csv" onchange="handleFile(event, 1)">
+            <canvas id="chart1"></canvas>
+        </div>
+
+        <div class="card">
+            <h3>Ticker 3</h3>
+            <input type="file" accept=".csv" onchange="handleFile(event, 2)">
+            <canvas id="chart2"></canvas>
+        </div>
     </div>
 </div>
+</body>
 
 <script>
-document.getElementById("fileInput").addEventListener("change", function(event) {
+const charts = {}; // store chart instances by index
+
+function handleFile(event, chartIndex) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -75,28 +107,26 @@ document.getElementById("fileInput").addEventListener("change", function(event) 
         const text = e.target.result;
         const lines = text.split(/\r?\n/);
 
-        // Spot price is in cell A5
-        const spotPrice = parseFloat(lines[4].split(",")[0]);
-        if (isNaN(spotPrice)) {
-            alert("Could not detect spot price in cell A5.");
+        // Spot price from A5
+        const spot = parseFloat(lines[4].split(",")[0]);
+        if (isNaN(spot)) {
+            alert("Spot price not found in A5");
             return;
         }
 
-        // Remove Thinkorswim metadata
+        // Remove metadata
         const dataLines = lines.slice(11).join("\n");
 
         Papa.parse(dataLines, {
             header: true,
             skipEmptyLines: true,
-            complete: function(results) {
-                buildChart(results.data, spotPrice);
-            }
+            complete: res => buildChart(res.data, spot, chartIndex)
         });
     };
     reader.readAsText(file);
-});
+}
 
-function buildChart(data, spot) {
+function buildChart(data, spot, index) {
     const strikes = [];
     const callGEX = [];
     const putGEX = [];
@@ -105,96 +135,78 @@ function buildChart(data, spot) {
         const strike = parseFloat(row["Strike"]);
         if (isNaN(strike)) return;
 
-        const callOI = parseFloat(row["Open.Int"]) || 0;
-        const callGamma = parseFloat(row["Gamma"]) || 0;
+        const cG = parseFloat(row["Gamma"]) || 0;
+        const cOI = parseFloat(row["Open.Int"]) || 0;
 
-        const putOI = parseFloat(row["Open.Int_1"]) || 0;
-        const putGamma = parseFloat(row["Gamma_1"]) || 0;
+        const pG = parseFloat(row["Gamma_1"]) || 0;
+        const pOI = parseFloat(row["Open.Int_1"]) || 0;
 
         strikes.push(strike);
-
-        // Call & Put GEX (both positive for visualization)
-        callGEX.push(callGamma * callOI * 100);
-        putGEX.push(putGamma * putOI * 100);
+        callGEX.push(cG * cOI * 100 * spot);
+        putGEX.push(pG * pOI * 100 * spot);
     });
 
-    const ctx = document.getElementById("gexChart").getContext("2d");
-    if (window.chart) window.chart.destroy();
+    const ctx = document.getElementById(`chart${index}`).getContext("2d");
+    if (charts[index]) charts[index].destroy();
 
-    // Vertical spot price line plugin
-    const spotLinePlugin = {
+    const spotLine = {
         id: "spotLine",
         afterDraw(chart) {
             const xScale = chart.scales.x;
             const yScale = chart.scales.y;
+            const i = strikes.findIndex(s => s >= spot);
+            if (i === -1) return;
 
-            const index = strikes.findIndex(s => s >= spot);
-            if (index === -1) return;
-
-            const x = xScale.getPixelForValue(index);
-
-            const ctx = chart.ctx;
-            ctx.save();
-            ctx.strokeStyle = "#ff4d9d"; // pink
-            ctx.lineWidth = 2;
-            ctx.setLineDash([6, 6]);
-            ctx.beginPath();
-            ctx.moveTo(x, yScale.top);
-            ctx.lineTo(x, yScale.bottom);
-            ctx.stroke();
-            ctx.restore();
+            const x = xScale.getPixelForValue(i);
+            const c = chart.ctx;
+            c.save();
+            c.strokeStyle = "#ff4d9d";
+            c.setLineDash([6,6]);
+            c.lineWidth = 2;
+            c.beginPath();
+            c.moveTo(x, yScale.top);
+            c.lineTo(x, yScale.bottom);
+            c.stroke();
+            c.restore();
         }
     };
 
-    window.chart = new Chart(ctx, {
+    charts[index] = new Chart(ctx, {
         type: "line",
-        plugins: [spotLinePlugin],
+        plugins: [spotLine],
         data: {
             labels: strikes,
-    datasets: [
-    {
-        label: "Call GEX",
-        data: callGEX,
-        borderColor: "#2ecc71", // GREEN = CALLS
-        borderWidth: 2,
-        tension: 0.25
-    },
-    {
-        label: "Put GEX",
-        data: putGEX,
-        borderColor: "#e74c3c", // RED = PUTS
-        borderWidth: 2,
-        tension: 0.25
-    }
-]
+            datasets: [
+                {
+                    label: "Call GEX",
+                    data: callGEX,
+                    borderColor: "#2ecc71",
+                    borderWidth: 2,
+                    tension: 0.25
+                },
+                {
+                    label: "Put GEX",
+                    data: putGEX,
+                    borderColor: "#e74c3c",
+                    borderWidth: 2,
+                    tension: 0.25
+                }
+            ]
         },
         options: {
             responsive: true,
             plugins: {
-                legend: {
-                    labels: { color: "#e6edf3" }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: ctx =>
-                            ctx.dataset.label + ": " +
-                            ctx.parsed.y.toLocaleString()
-                    }
-                }
+                legend: { labels: { color: "#e6edf3" } }
             },
             scales: {
                 x: {
                     ticks: { color: "#8b949e" },
-                    title: {
-                        display: true,
-                        text: "Strike",
-                        color: "#8b949e"
-                    }
+                    title: { display: true, text: "Strike", color: "#8b949e" }
                 },
                 y: {
                     ticks: {
                         color: "#8b949e",
-                        callback: val => val.toLocaleString()
+                        callback: v => v.toLocaleString()
                     },
                     title: {
                         display: true,
