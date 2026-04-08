@@ -4,260 +4,618 @@
 <meta charset="UTF-8">
 <title>Multi-Ticker Gamma Exposure</title>
 
-<!-- Chart.js v3 (LOCKED VERSION) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
-
-<!-- Annotation Plugin (COMPATIBLE WITH v3) -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
-
-<!-- Zoom Plugin (COMPATIBLE WITH v3) -->
 <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1"></script>
-
-<!-- Papa Parse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
-body {
-    background-color: #0e1117;
-    color: #e6edf3;
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 20px;
-}
+  *, *::before, *::after { box-sizing: border-box; }
 
-h1 { margin-bottom: 20px; }
-h2 { margin-bottom: 5px; }
-
-.chart-container {
-    margin: 0 auto 100px auto;
-    height: 390px;
-    max-width: 1100px;
-}
-
-canvas {
+  body {
     background: #0e1117;
-    border-radius: 10px;
-}
+    color: #e6edf3;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    margin: 0;
+    padding: 24px 20px 60px;
+  }
 
-.controls {
-    margin: 10px 0;
-}
+  h1 {
+    font-size: 1.6rem;
+    letter-spacing: .03em;
+    margin: 0 0 28px;
+    color: #c9d1db;
+  }
 
-.controls button {
-    background-color: #2ecc71;
-    color: #0e1117;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 5px;
+  .ticker-block {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 22px 22px 28px;
+    margin-bottom: 40px;
+    max-width: 1160px;
+  }
+
+  .ticker-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  .ticker-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #8b949e;
+    min-width: 70px;
+  }
+
+  .file-label {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 6px 12px;
     cursor: pointer;
-    font-weight: bold;
-    margin-right: 10px;
-}
+    font-size: .85rem;
+    color: #c9d1db;
+    transition: background .15s;
+  }
+  .file-label:hover { background: #2d333b; }
+  .file-label input { display: none; }
 
-.controls button:hover {
-    background-color: #27ae60;
-}
+  .loaded-name {
+    font-size: .8rem;
+    color: #58a6ff;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  select {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    padding: 6px 10px;
+    font-size: .85rem;
+    cursor: pointer;
+    min-width: 200px;
+  }
+  select:focus { outline: 1px solid #58a6ff; }
+
+  .btn {
+    background: #238636;
+    color: #fff;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: .85rem;
+    font-weight: 600;
+    transition: background .15s;
+  }
+  .btn:hover { background: #2ea043; }
+  .btn.secondary {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #c9d1db;
+  }
+  .btn.secondary:hover { background: #2d333b; }
+
+  .spot-badge {
+    font-size: .8rem;
+    background: #2d1f3d;
+    border: 1px solid #6e40c9;
+    border-radius: 20px;
+    padding: 4px 12px;
+    color: #d2a8ff;
+    display: none;
+  }
+
+  .exp-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+    min-height: 28px;
+  }
+
+  .pill {
+    font-size: .75rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid #30363d;
+    background: #21262d;
+    color: #8b949e;
+    cursor: pointer;
+    transition: all .15s;
+    user-select: none;
+  }
+  .pill:hover { border-color: #58a6ff; color: #58a6ff; }
+  .pill.active { background: #1f4068; border-color: #58a6ff; color: #58a6ff; }
+  .pill.aggregate { border-color: #ff4fd8; color: #d29aff; }
+  .pill.aggregate.active { background: #2d1040; border-color: #ff4fd8; color: #ff4fd8; }
+
+  .chart-wrap {
+    position: relative;
+    height: 380px;
+  }
+
+  canvas {
+    border-radius: 8px;
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 280px;
+    color: #4a5568;
+    font-size: .95rem;
+    border: 1px dashed #30363d;
+    border-radius: 8px;
+  }
+
+  .tos-tip {
+    background: #1a1f2e;
+    border: 1px solid #2a3a5a;
+    border-left: 3px solid #58a6ff;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: .8rem;
+    color: #8b949e;
+    margin-bottom: 14px;
+    line-height: 1.6;
+    display: none;
+  }
+  .tos-tip strong { color: #58a6ff; }
+  .tos-tip .warn { color: #f0a500; font-weight: 600; }
+
+  .stats-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: .78rem;
+    color: #8b949e;
+  }
+  .stat { display: flex; gap: 5px; }
+  .stat span { color: #c9d1db; font-weight: 600; }
 </style>
 </head>
-
 <body>
 
-<h1>Gamma Exposure Dashboard</h1>
+<h1>⚡ Gamma Exposure Dashboard</h1>
 
-<div class="chart-container">
-    <h2>Ticker 1</h2>
-    <input type="file" onchange="loadCSV(event, 0)">
-    <div class="controls">
-        <button onclick="resetZoom(0)">Reset Zoom</button>
-    </div>
-    <canvas id="chart0"></canvas>
-</div>
-
-<div class="chart-container">
-    <h2>Ticker 2</h2>
-    <input type="file" onchange="loadCSV(event, 1)">
-    <div class="controls">
-        <button onclick="resetZoom(1)">Reset Zoom</button>
-    </div>
-    <canvas id="chart1"></canvas>
-</div>
-
-<div class="chart-container">
-    <h2>Ticker 3</h2>
-    <input type="file" onchange="loadCSV(event, 2)">
-    <div class="controls">
-        <button onclick="resetZoom(2)">Reset Zoom</button>
-    </div>
-    <canvas id="chart2"></canvas>
-</div>
+<div id="tickerBlocks"></div>
 
 <script>
-const charts = [];
+// ── Config ────────────────────────────────────────────────
+const NUM_TICKERS = 3;
 
-function resetZoom(index) {
-    if (charts[index]) {
-        charts[index].resetZoom();
+// Colour palette for per-expiration lines (call / put pairs)
+const EXP_PALETTE = [
+  ["#2ecc71","#e74c3c"],
+  ["#3498db","#e67e22"],
+  ["#9b59b6","#f1c40f"],
+  ["#1abc9c","#e91e63"],
+  ["#00bcd4","#ff5722"],
+  ["#8bc34a","#ff9800"],
+  ["#673ab7","#cddc39"],
+  ["#4fc3f7","#ff7043"],
+];
+
+// ── State ─────────────────────────────────────────────────
+const state = []; // per-ticker: { spot, expirations: {label: [{strike,callGex,putGex}]}, chart, activeExps }
+
+// ── Build DOM ─────────────────────────────────────────────
+const container = document.getElementById("tickerBlocks");
+
+for (let i = 0; i < NUM_TICKERS; i++) {
+  state[i] = { spot: 0, expirations: {}, chart: null, activeExps: new Set() };
+
+  container.innerHTML += `
+  <div class="ticker-block" id="block${i}">
+    <div class="ticker-header">
+      <div class="ticker-title">Ticker ${i + 1}</div>
+      <label class="file-label">
+        📂 Load CSV
+        <input type="file" accept=".csv" onchange="loadCSV(event, ${i})">
+      </label>
+      <div class="loaded-name" id="fname${i}"></div>
+      <div class="spot-badge" id="spot${i}">Spot: —</div>
+    </div>
+
+    <div class="controls">
+      <button class="btn secondary" onclick="selectAll(${i})">Select All</button>
+      <button class="btn secondary" onclick="selectNone(${i})">Clear</button>
+      <button class="btn" onclick="resetZoom(${i})">Reset Zoom</button>
+    </div>
+
+    <div class="exp-pills" id="pills${i}"></div>
+
+    <div class="tos-tip" id="tip${i}">
+      <strong>ℹ️ Some expirations have no data.</strong> ThinkorSwim only exports strike rows for expirations that are <span class="warn">expanded (clicked open)</span> in the options chain before you export. To get more data: expand each expiration in the TOS Trade tab, then re-export to CSV.
+    </div>
+
+    <div class="chart-wrap">
+      <div class="empty-state" id="empty${i}">Load a ThinkorSwim options CSV to begin</div>
+      <canvas id="chart${i}" style="display:none"></canvas>
+    </div>
+
+    <div class="stats-row" id="stats${i}"></div>
+  </div>`;
+}
+
+// ── CSV Parser ────────────────────────────────────────────
+function toNum(v) {
+  if (v === null || v === undefined) return 0;
+  return Number(String(v).replace(/[",\s%]/g, "")) || 0;
+}
+
+function loadCSV(event, idx) {
+  const file = event.target.files[0];
+  if (!file) return;
+  document.getElementById(`fname${idx}`).textContent = file.name;
+
+  const reader = new FileReader();
+  reader.onload = e => parseFile(e.target.result, idx);
+  reader.readAsText(file);
+}
+
+function parseFile(text, idx) {
+  // Normalize line endings
+  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+
+  // Spot price is at line index 4, first field
+  const spot = toNum(lines[4]?.split(",")[0]);
+
+  // Regex to match expiration header lines like:
+  //   "7 APR 26  (0)  100 (Weeklys)"  or  "7 APR 26  (0)  100"
+  const expHeaderRe = /^\d{1,2}\s+[A-Z]{3}\s+\d{2,4}\s+\(\d+\)/;
+
+  // Column indices (0-based) in each data row
+  // Row format: ,,ImplVol,ProbOTM,Delta,OI_call,Gamma_call,BID,BX,ASK,AX,Exp,Strike,BID_put,BX,ASK_put,AX,ImplVol_put,ProbOTM_put,Delta_put,OI_put,Gamma_put,,
+  const COL = {
+    callOI:    5,
+    callGamma: 6,
+    strike:    12,
+    putOI:     20,
+    putGamma:  21,
+  };
+
+  const expirations = {}; // label -> [{strike, callGex, putGex}]
+  let currentLabel = null;
+  let inData = false;
+
+  // Start from index 10 — the first expiration header sits there
+  for (let li = 10; li < lines.length; li++) {
+    const line = lines[li].trim();
+    if (!line) { inData = false; continue; }
+
+    // Expiration header MUST be checked before column-header check,
+    // because it resets inData and sets currentLabel.
+    if (expHeaderRe.test(line)) {
+      currentLabel = line.trim();
+      inData = false;
+      expirations[currentLabel] = [];
+      continue;
     }
-}
 
-function toNumber(value) {
-    if (value === null || value === undefined) return 0;
-    if (typeof value === "number") return value;
+    // Column header row — only valid when we already have a label
+    if (currentLabel && (line.startsWith(",,Impl Vol") || line.startsWith(",,ImplVol"))) {
+      inData = true;
+      continue;
+    }
 
-    return Number(
-        value.toString()
-            .replace(/"/g, "")
-            .replace(/,/g, "")
-            .trim()
-    ) || 0;
-}
+    if (!inData || !currentLabel) continue;
 
-function loadCSV(event, chartIndex) {
-    const file = event.target.files[0];
-    if (!file) return;
+    // Parse the data row – need to handle quoted numbers like "1,088"
+    const cols = parseCSVLine(line);
+    const strike = toNum(cols[COL.strike]);
+    if (!strike) continue;
 
-    const reader = new FileReader();
-    reader.onload = e => {
-        const lines = e.target.result.split("\n");
+    const callGamma = toNum(cols[COL.callGamma]);
+    const callOI    = toNum(cols[COL.callOI]);
+    const putGamma  = toNum(cols[COL.putGamma]);
+    const putOI     = toNum(cols[COL.putOI]);
 
-        const spot = toNumber(lines[4]?.split(",")[0]);
-        const header = lines[11];
-        const body = lines.slice(12);
-        const csvData = [header, ...body].join("\n");
-
-        Papa.parse(csvData, {
-            header: true,
-            skipEmptyLines: true,
-            complete: results => {
-                buildChart(results.data, spot, chartIndex);
-            }
-        });
-    };
-
-    reader.readAsText(file);
-}
-
-function buildChart(rows, spot, index) {
-
-    const callGEX = [];
-    const putGEX  = [];
-
-    rows.forEach(r => {
-        const strike = toNumber(r["Strike"]);
-        if (!strike) return;
-
-        const callGamma = toNumber(r["Gamma"]);
-        const callOI    = toNumber(r["Open.Int"]);
-        const putGamma  = toNumber(r["Gamma_1"]);
-        const putOI     = toNumber(r["Open.Int_1"]);
-
-        callGEX.push({
-            x: strike,
-            y: callGamma * callOI * 100 * spot
-        });
-
-        putGEX.push({
-            x: strike,
-            y: putGamma * putOI * 100 * spot
-        });
+    expirations[currentLabel].push({
+      strike,
+      callGex: callGamma * callOI * 100 * spot,
+      putGex:  putGamma  * putOI  * 100 * spot,
     });
+  }
 
-    if (charts[index]) charts[index].destroy();
+  // Filter out empty expirations
+  const filtered = {};
+  const emptyCount = Object.values(expirations).filter(v => v.length === 0).length;
+  for (const [k, v] of Object.entries(expirations)) {
+    if (v.length > 0) filtered[k] = v;
+  }
 
-    charts[index] = new Chart(
-        document.getElementById(`chart${index}`),
-        {
-            type: "line",
-            data: {
-                datasets: [
-                    {
-                        label: "Call GEX",
-                        data: callGEX,
-                        borderColor: "#2ecc71",
-                        borderWidth: 2,
-                        tension: 0.25,
-                        pointRadius: 0
-                    },
-                    {
-                        label: "Put GEX",
-                        data: putGEX,
-                        borderColor: "#e74c3c",
-                        borderWidth: 2,
-                        tension: 0.25,
-                        pointRadius: 0
-                    }
-                ]
-            },
-            options: {
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        labels: { color: "#e6edf3" }
-                    },
-                    zoom: {
-                        zoom: {
-                            wheel: {
-                                enabled: true,
-                                speed: 0.1
-                            },
-                            pinch: {
-                                enabled: true
-                            },
-                            mode: 'xy'
-                        },
-                        pan: {
-                            enabled: true,
-                            mode: 'xy'
-                        }
-                    },
-                    annotation: {
-                        annotations: {
-                            spotLine: {
-                                type: "line",
-                                scaleID: "x",
-                                value: spot,
-                                borderColor: "#ff4fd8",
-                                borderWidth: 3,
-                                borderDash: [6, 6],
-                                label: {
-                                    display: true,
-                                    content: `Spot: $${spot.toFixed(2)}`,
-                                    position: "start",
-                                    backgroundColor: "#ff4fd8",
-                                    color: "#0e1117",
-                                    font: {
-                                        weight: 'bold'
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        type: "linear",
-                        title: {
-                            display: true,
-                            text: "Strike",
-                            color: "#e6edf3"
-                        },
-                        ticks: { color: "#e6edf3" }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: "Gamma Exposure",
-                            color: "#e6edf3"
-                        },
-                        ticks: { color: "#e6edf3" }
-                    }
-                }
+  state[idx].spot = spot;
+  state[idx].expirations = filtered;
+  state[idx].emptyCount = emptyCount;
+  state[idx].activeExps = new Set(Object.keys(filtered));
+
+  // Show tip if there were empty expirations
+  document.getElementById(`tip${idx}`).style.display = emptyCount > 0 ? "block" : "none"; // default: all on
+
+  buildPills(idx);
+  renderChart(idx);
+
+  // Show spot badge
+  const badge = document.getElementById(`spot${idx}`);
+  badge.textContent = `Spot: $${spot.toFixed(2)}`;
+  badge.style.display = "inline-block";
+}
+
+// Minimal CSV line parser that handles quoted fields
+function parseCSVLine(line) {
+  const result = [];
+  let cur = "";
+  let inQuote = false;
+  for (let ci = 0; ci < line.length; ci++) {
+    const ch = line[ci];
+    if (ch === '"') { inQuote = !inQuote; continue; }
+    if (ch === ',' && !inQuote) { result.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  result.push(cur);
+  return result;
+}
+
+// ── Pill UI ───────────────────────────────────────────────
+function buildPills(idx) {
+  const s = state[idx];
+  const container = document.getElementById(`pills${idx}`);
+  container.innerHTML = "";
+
+  // "All (Net)" aggregate pill
+  const allPill = document.createElement("div");
+  allPill.className = "pill aggregate" + (s.activeExps.has("__ALL__") ? " active" : "");
+  allPill.textContent = "All Exps (Net)";
+  allPill.onclick = () => toggleExp(idx, "__ALL__");
+  container.appendChild(allPill);
+
+  Object.keys(s.expirations).forEach((label, i) => {
+    const pill = document.createElement("div");
+    pill.className = "pill" + (s.activeExps.has(label) ? " active" : "");
+    // Short label: "7 APR 26 (0d)"
+    pill.textContent = shortLabel(label);
+    pill.title = label;
+    pill.id = `pill${idx}_${i}`;
+    pill.onclick = () => toggleExp(idx, label);
+    container.appendChild(pill);
+  });
+}
+
+function shortLabel(label) {
+  // "7 APR 26  (0)  100 (Weeklys)" → "7 APR (0d)"
+  const m = label.match(/^(\d{1,2}\s+[A-Z]{3}(?:\s+\d{2,4})?)\s+\((\d+)\)/);
+  return m ? `${m[1].trim()} (${m[2]}d)` : label.slice(0, 16);
+}
+
+function toggleExp(idx, label) {
+  const s = state[idx];
+  if (label === "__ALL__") {
+    // Toggle aggregate – turns off all individual
+    if (s.activeExps.has("__ALL__")) {
+      s.activeExps.delete("__ALL__");
+      // restore all individuals
+      Object.keys(s.expirations).forEach(k => s.activeExps.add(k));
+    } else {
+      s.activeExps.clear();
+      s.activeExps.add("__ALL__");
+    }
+  } else {
+    s.activeExps.delete("__ALL__");
+    if (s.activeExps.has(label)) {
+      s.activeExps.delete(label);
+    } else {
+      s.activeExps.add(label);
+    }
+  }
+  buildPills(idx);
+  renderChart(idx);
+}
+
+function selectAll(idx) {
+  const s = state[idx];
+  s.activeExps.clear();
+  Object.keys(s.expirations).forEach(k => s.activeExps.add(k));
+  buildPills(idx);
+  renderChart(idx);
+}
+
+function selectNone(idx) {
+  state[idx].activeExps.clear();
+  buildPills(idx);
+  renderChart(idx);
+}
+
+// ── Chart Rendering ───────────────────────────────────────
+function resetZoom(idx) {
+  if (state[idx].chart) state[idx].chart.resetZoom();
+}
+
+function renderChart(idx) {
+  const s = state[idx];
+  const canvas = document.getElementById(`chart${idx}`);
+  const empty  = document.getElementById(`empty${idx}`);
+
+  if (Object.keys(s.expirations).length === 0) {
+    canvas.style.display = "none";
+    empty.style.display = "flex";
+    return;
+  }
+
+  canvas.style.display = "block";
+  empty.style.display = "none";
+
+  if (s.chart) s.chart.destroy();
+
+  const datasets = [];
+
+  if (s.activeExps.has("__ALL__")) {
+    // Aggregate net GEX across all expirations
+    const netMap = {};
+    for (const rows of Object.values(s.expirations)) {
+      for (const row of rows) {
+        if (!netMap[row.strike]) netMap[row.strike] = { callGex: 0, putGex: 0 };
+        netMap[row.strike].callGex += row.callGex;
+        netMap[row.strike].putGex  += row.putGex;
+      }
+    }
+    const strikes = Object.keys(netMap).map(Number).sort((a, b) => a - b);
+    datasets.push({
+      label: "Call GEX (All)",
+      data: strikes.map(x => ({ x, y: netMap[x].callGex })),
+      borderColor: "#ff4fd8",
+      borderWidth: 2.5,
+      tension: 0.25,
+      pointRadius: 0,
+    });
+    datasets.push({
+      label: "Put GEX (All)",
+      data: strikes.map(x => ({ x, y: -netMap[x].putGex })),
+      borderColor: "#f0a500",
+      borderWidth: 2.5,
+      tension: 0.25,
+      pointRadius: 0,
+    });
+  } else {
+    // Per-expiration lines
+    let colorIdx = 0;
+    for (const [label, rows] of Object.entries(s.expirations)) {
+      if (!s.activeExps.has(label)) continue;
+      const [callColor, putColor] = EXP_PALETTE[colorIdx % EXP_PALETTE.length];
+      colorIdx++;
+      const short = shortLabel(label);
+      const sorted = [...rows].sort((a, b) => a.strike - b.strike);
+      datasets.push({
+        label: `Call ${short}`,
+        data: sorted.map(r => ({ x: r.strike, y: r.callGex })),
+        borderColor: callColor,
+        borderWidth: 1.8,
+        tension: 0.25,
+        pointRadius: 0,
+      });
+      datasets.push({
+        label: `Put ${short}`,
+        data: sorted.map(r => ({ x: r.strike, y: -r.putGex })),
+        borderColor: putColor,
+        borderWidth: 1.8,
+        tension: 0.25,
+        pointRadius: 0,
+        borderDash: [4, 3],
+      });
+    }
+  }
+
+  // Stats
+  updateStats(idx, datasets);
+
+  s.chart = new Chart(canvas, {
+    type: "line",
+    data: { datasets },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: "#8b949e",
+            boxWidth: 20,
+            padding: 12,
+            font: { size: 11 }
+          }
+        },
+        zoom: {
+          zoom: {
+            wheel: { enabled: true, speed: 0.08 },
+            pinch: { enabled: true },
+            mode: "xy"
+          },
+          pan: { enabled: true, mode: "xy" }
+        },
+        annotation: {
+          annotations: {
+            spotLine: {
+              type: "line",
+              scaleID: "x",
+              value: s.spot,
+              borderColor: "#c792ea",
+              borderWidth: 2,
+              borderDash: [5, 5],
+              label: {
+                display: true,
+                content: `Spot $${s.spot.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                position: "start",
+                backgroundColor: "#c792ea",
+                color: "#0e1117",
+                font: { weight: "bold", size: 11 },
+                padding: { x: 7, y: 4 },
+                borderRadius: 4,
+              }
             }
+          }
         }
-    );
+      },
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: true, text: "Strike", color: "#6e7681", font: { size: 11 } },
+          ticks: { color: "#6e7681", font: { size: 10 } },
+          grid: { color: "#1f262d" }
+        },
+        y: {
+          title: { display: true, text: "Gamma Exposure ($)", color: "#6e7681", font: { size: 11 } },
+          ticks: {
+            color: "#6e7681",
+            font: { size: 10 },
+            callback: v => {
+              if (Math.abs(v) >= 1e9) return (v / 1e9).toFixed(1) + "B";
+              if (Math.abs(v) >= 1e6) return (v / 1e6).toFixed(1) + "M";
+              if (Math.abs(v) >= 1e3) return (v / 1e3).toFixed(1) + "K";
+              return v;
+            }
+          },
+          grid: { color: "#1f262d" }
+        }
+      }
+    }
+  });
+}
+
+function updateStats(idx, datasets) {
+  const statsEl = document.getElementById(`stats${idx}`);
+  const expCount = state[idx].activeExps.has("__ALL__")
+    ? Object.keys(state[idx].expirations).length
+    : state[idx].activeExps.size;
+  const totalExp = Object.keys(state[idx].expirations).length;
+  const emptyCount = state[idx].emptyCount || 0;
+  const zeroGexCount = Object.values(state[idx].expirations)
+    .filter(rows => rows.every(r => r.callGex === 0 && r.putGex === 0)).length;
+  statsEl.innerHTML = `
+    <div class="stat">Expirations with data: <span>${totalExp}</span></div>
+    <div class="stat">Showing: <span>${expCount}</span></div>
+    ${emptyCount > 0 ? `<div class="stat" style="color:#f0a500">Collapsed in TOS (no data): <span style="color:#f0a500">${emptyCount}</span></div>` : ''}
+    ${zeroGexCount > 0 ? `<div class="stat" style="color:#e05c5c">Zero GEX – gamma precision too low: <span style="color:#e05c5c">${zeroGexCount} exp</span>&nbsp;&nbsp;<span style="font-weight:400;color:#8b949e">→ right-click Gamma column in TOS, set 4 decimal places, re-export</span></div>` : ''}
+  `;
 }
 </script>
-
 </body>
 </html>
