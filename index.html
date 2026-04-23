@@ -144,8 +144,7 @@
   }
   .pill:hover { border-color: #58a6ff; color: #58a6ff; }
   .pill.active { background: #1f4068; border-color: #58a6ff; color: #58a6ff; }
-  .pill.aggregate { border-color: #ff4fd8; color: #d29aff; }
-  .pill.aggregate.active { background: #2d1040; border-color: #ff4fd8; color: #ff4fd8; }
+
 
   .chart-wrap {
     position: relative;
@@ -204,17 +203,9 @@
 // ── Config ────────────────────────────────────────────────
 const NUM_TICKERS = 3;
 
-// Colour palette for per-expiration lines (call / put pairs)
-const EXP_PALETTE = [
-  ["#2ecc71","#e74c3c"],
-  ["#3498db","#e67e22"],
-  ["#9b59b6","#f1c40f"],
-  ["#1abc9c","#e91e63"],
-  ["#00bcd4","#ff5722"],
-  ["#8bc34a","#ff9800"],
-  ["#673ab7","#cddc39"],
-  ["#4fc3f7","#ff7043"],
-];
+// Colors: always green=call, red=put
+const CALL_COLOR = "#2ecc71";
+const PUT_COLOR  = "#e74c3c";
 
 // ── State ─────────────────────────────────────────────────
 const state = []; // per-ticker: { spot, expirations: {label: [{strike,callGex,putGex}]}, chart, activeExps }
@@ -383,13 +374,6 @@ function buildPills(idx) {
   const container = document.getElementById(`pills${idx}`);
   container.innerHTML = "";
 
-  // "All (Net)" aggregate pill
-  const allPill = document.createElement("div");
-  allPill.className = "pill aggregate" + (s.activeExps.has("__ALL__") ? " active" : "");
-  allPill.textContent = "All Exps (Net)";
-  allPill.onclick = () => toggleExp(idx, "__ALL__");
-  container.appendChild(allPill);
-
   Object.keys(s.expirations).forEach((label, i) => {
     const pill = document.createElement("div");
     pill.className = "pill" + (s.activeExps.has(label) ? " active" : "");
@@ -410,23 +394,10 @@ function shortLabel(label) {
 
 function toggleExp(idx, label) {
   const s = state[idx];
-  if (label === "__ALL__") {
-    // Toggle aggregate – turns off all individual
-    if (s.activeExps.has("__ALL__")) {
-      s.activeExps.delete("__ALL__");
-      // restore all individuals
-      Object.keys(s.expirations).forEach(k => s.activeExps.add(k));
-    } else {
-      s.activeExps.clear();
-      s.activeExps.add("__ALL__");
-    }
+  if (s.activeExps.has(label)) {
+    s.activeExps.delete(label);
   } else {
-    s.activeExps.delete("__ALL__");
-    if (s.activeExps.has(label)) {
-      s.activeExps.delete(label);
-    } else {
-      s.activeExps.add(label);
-    }
+    s.activeExps.add(label);
   }
   buildPills(idx);
   renderChart(idx);
@@ -467,62 +438,42 @@ function renderChart(idx) {
 
   if (s.chart) s.chart.destroy();
 
-  const datasets = [];
+  // Aggregate selected expirations into one call (green) and one put (red) line
+  const netMap = {};
+  for (const [label, rows] of Object.entries(s.expirations)) {
+    if (!s.activeExps.has(label)) continue;
+    for (const row of rows) {
+      if (!netMap[row.strike]) netMap[row.strike] = { callGex: 0, putGex: 0 };
+      netMap[row.strike].callGex += row.callGex;
+      netMap[row.strike].putGex  += row.putGex;
+    }
+  }
 
-  if (s.activeExps.has("__ALL__")) {
-    // Aggregate net GEX across all expirations
-    const netMap = {};
-    for (const rows of Object.values(s.expirations)) {
-      for (const row of rows) {
-        if (!netMap[row.strike]) netMap[row.strike] = { callGex: 0, putGex: 0 };
-        netMap[row.strike].callGex += row.callGex;
-        netMap[row.strike].putGex  += row.putGex;
-      }
-    }
-    const strikes = Object.keys(netMap).map(Number).sort((a, b) => a - b);
+  const strikes = Object.keys(netMap).map(Number).sort((a, b) => a - b);
+  const activeLabels = [...s.activeExps].map(shortLabel).join(", ");
+
+  const datasets = [];
+  if (strikes.length > 0) {
     datasets.push({
-      label: "Call GEX (All)",
+      label: "Call GEX",
       data: strikes.map(x => ({ x, y: netMap[x].callGex })),
-      borderColor: "#ff4fd8",
+      borderColor: CALL_COLOR,
+      backgroundColor: "rgba(46,204,113,0.08)",
       borderWidth: 2.5,
-      tension: 0.25,
+      tension: 0.3,
       pointRadius: 0,
+      fill: false,
     });
     datasets.push({
-      label: "Put GEX (All)",
-      data: strikes.map(x => ({ x, y: -netMap[x].putGex })),
-      borderColor: "#f0a500",
+      label: "Put GEX",
+      data: strikes.map(x => ({ x, y: netMap[x].putGex })),
+      borderColor: PUT_COLOR,
+      backgroundColor: "rgba(231,76,60,0.08)",
       borderWidth: 2.5,
-      tension: 0.25,
+      tension: 0.3,
       pointRadius: 0,
+      fill: false,
     });
-  } else {
-    // Per-expiration lines
-    let colorIdx = 0;
-    for (const [label, rows] of Object.entries(s.expirations)) {
-      if (!s.activeExps.has(label)) continue;
-      const [callColor, putColor] = EXP_PALETTE[colorIdx % EXP_PALETTE.length];
-      colorIdx++;
-      const short = shortLabel(label);
-      const sorted = [...rows].sort((a, b) => a.strike - b.strike);
-      datasets.push({
-        label: `Call ${short}`,
-        data: sorted.map(r => ({ x: r.strike, y: r.callGex })),
-        borderColor: callColor,
-        borderWidth: 1.8,
-        tension: 0.25,
-        pointRadius: 0,
-      });
-      datasets.push({
-        label: `Put ${short}`,
-        data: sorted.map(r => ({ x: r.strike, y: -r.putGex })),
-        borderColor: putColor,
-        borderWidth: 1.8,
-        tension: 0.25,
-        pointRadius: 0,
-        borderDash: [4, 3],
-      });
-    }
   }
 
   // Stats
@@ -602,9 +553,7 @@ function renderChart(idx) {
 
 function updateStats(idx, datasets) {
   const statsEl = document.getElementById(`stats${idx}`);
-  const expCount = state[idx].activeExps.has("__ALL__")
-    ? Object.keys(state[idx].expirations).length
-    : state[idx].activeExps.size;
+  const expCount = state[idx].activeExps.size;
   const totalExp = Object.keys(state[idx].expirations).length;
   const emptyCount = state[idx].emptyCount || 0;
   const zeroGexCount = Object.values(state[idx].expirations)
